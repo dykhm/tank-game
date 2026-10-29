@@ -26,3 +26,16 @@ body {
   top: 15px;
   left: 15px;
 }
+
+.hp {
+  margin-top: 10px;
+  color: rgb(116, 24, 24);
+}
+
+#respawn {
+  color: rgb(116, 24, 24);
+}
+
+.stats {
+  margin-top: 10px;
+}

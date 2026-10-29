@@ -39,4 +39,3 @@ export function createLoop(update, render) {
 	}
 	requestAnimationFrame(loop);
 }
-

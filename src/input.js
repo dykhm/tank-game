@@ -1,22 +1,34 @@
-export function createInput() {
-    const keys = {
-        KeyA : false,
-        KeyD : false,
-        KeyS : false,
-        KeyW : false
-    }
+const BINDINGS = {
+	up: ["KeyW", "ArrowUp"],
+	down: ["KeyS", "ArrowDown"],
+	left: ["KeyA", "ArrowLeft"],
+	right: ["KeyD", "ArrowRight"],
+	fire: ["Space"],
+};
 
-    window.addEventListener('keydown', (event) => {
-        if (event.code in keys) {
-            keys[event.code] = true
-        }
-    })
-    
-    window.addEventListener('keyup', (event) => {
-        if (event.code in keys) {
-            keys[event.code] = false
-        }
-    })
+const actionByKey = {};
+for (const [action, codes] of Object.entries(BINDINGS)) {
+	for (const code of codes) {
+		actionByKey[code] = action;
+	}
+}
 
-    return (key) => keys[key]
+export function createInput(onPress = () => {}) {
+	const pressed = new Set();
+
+	window.addEventListener("keydown", (event) => {
+		const action = actionByKey[event.code];
+		if (!action) return;
+
+		event.preventDefault();
+		pressed.add(event.code);
+
+		if (!event.repeat) {
+			onPress(action);
+		}
+	});
+	window.addEventListener("keyup", (event) => pressed.delete(event.code));
+	window.addEventListener("blur", () => pressed.clear());
+
+	return (action) => BINDINGS[action].some((code) => pressed.has(code));
 }

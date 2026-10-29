@@ -1,36 +1,72 @@
-export function render(ctx, tank, previousTank, width, height, alpha) {
-    const renderX = previousTank.x + (tank.x - previousTank.x) * alpha
-    const renderY = previousTank.y + (tank.y - previousTank.y) * alpha
-    const renderAngle = previousTank.angle + (tank.angle - previousTank.angle) * alpha
+const lerp = (a, b, t) => a + (b - a) * t;
 
-    const renderTank = {
-        x: renderX,
-        y: renderY,
-        angle: renderAngle
-    }
+const TELEPORT_DISTANCE = 50;
 
-    ctx.clearRect(0, 0, width, height)
+function renderPosition(entity, alpha) {
+	const { previousPosition: from, position: to } = entity;
 
-    ctx.save()
-
-    ctx.translate(renderTank.x, renderTank.y)
-    ctx.rotate(renderTank.angle)
-
-    drawTank(ctx)
-    ctx.restore()
+	if (from.distanceTo(to) > TELEPORT_DISTANCE) {
+		return { x: to.x, y: to.y };
+	}
+	return { x: lerp(from.x, to.x, alpha), y: lerp(from.y, to.y, alpha) };
 }
 
-function drawTank(ctx) {
-    ctx.lineWidth = 2
-    ctx.strokeRect(-16, -23, 32, 46)
+function circle(ctx, position, radius, color) {
+	ctx.beginPath();
+	ctx.arc(position.x, position.y, radius, 0, Math.PI * 2);
+	ctx.fillStyle = color;
+	ctx.fill();
+}
 
-    ctx.fillStyle = '#0F2070'
-    ctx.fillRect(-15, -22, 30, 44)
-    
-    ctx.strokeRect(-8, -12, 16, 23)
+function drawTank(ctx, tank, alpha) {
+	const { x, y } = renderPosition(tank, alpha);
+	const angle = lerp(tank.previousAngle, tank.angle, alpha);
 
-    ctx.fillStyle = 'black'
-    ctx.fillRect(-20, -19, 5, 40)
-    ctx.fillRect(15, -19, 5, 40)
-    ctx.fillRect(-2, -38, 5, 40)
+	ctx.save();
+	ctx.translate(x, y);
+	ctx.rotate(angle);
+
+	ctx.lineWidth = 2;
+	ctx.strokeStyle = "black";
+	ctx.strokeRect(-16, -23, 32, 46);
+
+	ctx.fillStyle = "#0F2070";
+	ctx.fillRect(-15, -22, 30, 44);
+
+	ctx.strokeRect(-8, -12, 16, 23);
+
+	ctx.fillStyle = "black";
+	ctx.fillRect(-20, -19, 5, 40);
+	ctx.fillRect(15, -19, 5, 40);
+	ctx.fillRect(-2, -38, 5, 40);
+
+	ctx.restore();
+}
+
+const drawers = {
+	tank: drawTank,
+	bullet: (ctx, e, alpha) =>
+		circle(
+			ctx,
+			renderPosition(e, alpha),
+			e.radius,
+			e.has("homing") ? "dodgerblue" : "orange",
+		),
+	homingMissile: (ctx, e, alpha) =>
+		circle(ctx, renderPosition(e, alpha), e.radius, "red"),
+	pickup: (ctx, e, alpha) =>
+		circle(ctx, renderPosition(e, alpha), e.radius, e.get("pickup").color),
+	explosion: (ctx, e) => {
+		for (const p of e.particles) {
+			circle(ctx, p.position, 2 + p.life * 3, "orange");
+		}
+	},
+};
+
+export function render(ctx, world, alpha, width, height) {
+	ctx.clearRect(0, 0, width, height);
+
+	for (const entity of world) {
+		drawers[entity.kind](ctx, entity, alpha);
+	}
 }
