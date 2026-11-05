@@ -39,3 +39,33 @@ body {
 .stats {
   margin-top: 10px;
 }
+
+#lobby[hidden] {
+  display: none;
+}
+
+button,
+input,
+select {
+  font: inherit;
+}
+
+#lobby {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 20px;
+  background: white;
+  border: 2px solid black;
+}
+
+#retry {
+  position: absolute;
+  top: 60%;
+  left: 50%;
+  transform: translateX(-50%);
+}

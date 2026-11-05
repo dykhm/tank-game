@@ -8,7 +8,8 @@
   <body>
     <div class="app" id="app">
       <canvas class="game"></canvas>
-      <div class="hud">
+      <div class="hud" hidden>
+        <div id="player"></div>
         <div>steps/s: <span id="steps">0</span></div>
         <div>frames/s: <span id="frames">0</span></div>
         <div>frame time: <span id="frame-time">0.0</span> ms</div>
@@ -17,6 +18,16 @@
         <div>Homing shots: <span id="homing-shots">0</span></div>
         <div id="respawn"></div>
       </div>
+
+      <div id="lobby" hidden>
+        <h2>Lobby</h2>
+        <label>Name: <input id="name" value="Player" /></label>
+        <label>Room: <select id="room"></select></label>
+        <div id="lobby-status">Loading rooms...</div>
+        <button id="join" type="button" disabled>Join</button>
+      </div>
+
+      <button id="retry" type="button" hidden>Retry</button>
     </div>
     <script type="module" src="/src/main.js"></script>
   </body>

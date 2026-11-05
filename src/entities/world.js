@@ -1,4 +1,4 @@
-import { resolveCollisions } from "./collision";
+import { resolveCollisions } from "../utils/collision";
 
 export class World {
 	entities = new Map(); 

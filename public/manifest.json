@@ -1,0 +1,8 @@
+{
+  "images": { "sprites": "/assets/sprites.png" },
+  "sounds": {
+    "fire": "/assets/fire.wav",
+    "hit": "/assets/hit.wav",
+    "explode": "/assets/explode.wav"
+  }
+}

@@ -1,4 +1,4 @@
-import { integrate } from "./physics";
+import { integrate } from "../physics";
 
 export class Entity {
 	static #nextId = 1;

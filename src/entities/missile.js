@@ -1,6 +1,6 @@
-import { explosive, homing } from "./components";
+import { explosive, homing } from "../components/components";
+import { Vector2 } from "../utils/vector2";
 import { Entity } from "./entity";
-import { Vector2 } from "./vector2";
 
 export function createHomingMissile(position) {
 	const missile = new Entity(position, new Vector2(), 10, "homingMissile")

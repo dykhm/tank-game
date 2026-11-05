@@ -1,3 +1,5 @@
+import { emit } from "./bus";
+
 function overlap(a, b) {
 	const dx = a.position.x - b.position.x;
 	const dy = a.position.y - b.position.y;
@@ -14,15 +16,17 @@ const RULES = [
 			bullet.dead = true;
 			missile.dead = true;
 			world.score++;
+			emit("hit");
 		},
 	],
 	[
 		"bullet",
 		"tank",
 		(bullet, tank) => {
-			if (bullet.owner === tank) return; 
+			if (bullet.owner === tank) return;
 			bullet.dead = true;
 			tank.takeDamage();
+			emit("hit");
 		},
 	],
 	[
@@ -31,6 +35,7 @@ const RULES = [
 		(missile, tank) => {
 			missile.dead = true;
 			tank.takeDamage();
+			emit("hit");
 		},
 	],
 	[

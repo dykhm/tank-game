@@ -1,5 +1,5 @@
-import { Bullet } from "./bullet";
 import { explosive, homing } from "./components";
+import { Bullet } from "./entities/bullet";
 import { Entity } from "./entity";
 import { wrapAround } from "./physics";
 import { Vector2 } from "./vector2";
@@ -8,7 +8,7 @@ const SPEED = 120;
 const BULLET_SPEED = 250;
 const MAX_HP = 3;
 const FIRE_COOLDOWN = 0.25;
-const NOSE_OFFSET = 38; 
+const NOSE_OFFSET = 38;
 
 export class Tank extends Entity {
 	#hp = MAX_HP;

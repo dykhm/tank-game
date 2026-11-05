@@ -91,3 +91,83 @@ Entity
 - explosive — компонент вибуху при смерті, який можна додавати потрібним сутностям незалежно від їхнього класу.
 
 Компоненти зберігаються в Entity та викликаються під час оновлення або смерті сутності. Колізії обробляються окремою системою за типами kind.
+
+## Lab 03
+
+### 1. Головоломки порядку мікрозадач і задач
+
+**Головоломка 1**
+```js
+console.log("A");
+setTimeout(() => console.log("B"), 0);
+Promise.resolve().then(() => console.log("C"));
+console.log("D");
+```
+Вивід: `A D C B`
+Спочатку виконується синхронний код (A, D), потім мікрозадача (C), і лише після неї наступна макрозадача (B).
+
+**Головоломка 2 (await)**
+```js
+async function f() {
+	console.log("1");
+	await null;
+	console.log("2");
+}
+f();
+console.log("3");
+```
+Вивід: `1 3 2`
+Код до першого `await` виконується синхронно, а решта функції стає мікрозадачею і виконується після синхронного коду.
+
+**Головоломка 3 (setTimeout всередині .then)**
+```js
+setTimeout(() => console.log("timeout 1"), 0);
+Promise.resolve()
+	.then(() => {
+		console.log("then 1");
+		setTimeout(() => console.log("timeout 2"), 0);
+	})
+	.then(() => console.log("then 2"));
+```
+Вивід: `then 1`, `then 2`, `timeout 1`, `timeout 2`
+Обидва `then` є мікрозадачами й виконуються раніше за будь-який таймер, а таймери спрацьовують у порядку реєстрації.
+
+**Головоломка 4 (requestAnimationFrame)**
+```js
+requestAnimationFrame(() => {
+	console.log("raf 1");
+	Promise.resolve().then(() => console.log("micro in raf"));
+});
+requestAnimationFrame(() => console.log("raf 2"));
+```
+Вивід: `raf 1`, `micro in raf`, `raf 2`
+Мікрозадачі виконуються після завершення кожного колбека, тому `micro in raf` вклинюється між двома rAF-колбеками.
+
+**Головоломка 5 (await і ланцюжок then)**
+```js
+async function a() {
+	console.log("a1");
+	await b();
+	console.log("a2");
+}
+async function b() {
+	console.log("b");
+}
+a();
+Promise.resolve().then(() => console.log("p1")).then(() => console.log("p2"));
+console.log("end");
+```
+Вивід: `a1 b end a2 p1 p2`
+`b()` виконується синхронно, а продовження `a2` потрапляє в чергу мікрозадач раніше за `p1`, бо `a()` викликано першим.
+
+### 2. Галерея збоїв
+
+Гра в жодному з випадків не падає: або показується зрозуміле повідомлення з кнопкою **Retry**, або (для лобі) запит автоматично повторюється.
+
+| Збій | Як відтворити | Що бачить гравець | Скріншот |
+|---|---|---|---|
+| Таймаут мережі | DevTools → Network → Throttling → Add custom profile з дуже малою швидкістю (1 kb/s). Для лобі: `DELAY=10000 npm run dev` (PowerShell: `$env:DELAY=10000; npm run dev`) | «Network timeout» + Retry. У лобі: «Rooms error... Retrying...» | ![timeout](docs/timeout.png) |
+| Abort посеред завантаження | Fast 3G, оновити сторінку й натиснути Esc під час завантаження | «Loading cancelled» + Retry | ![abort](docs/abort.png) |
+| Битий JSON | Видалити останню `}` у `public/manifest.json` | «Broken JSON file» + Retry. Повторів немає, бо файл не зміниться | ![json](docs/json.png) |
+
+Після виправлення причини кнопка Retry знову запускає завантаження, і гра стартує нормально.

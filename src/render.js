@@ -11,62 +11,43 @@ function renderPosition(entity, alpha) {
 	return { x: lerp(from.x, to.x, alpha), y: lerp(from.y, to.y, alpha) };
 }
 
-function circle(ctx, position, radius, color) {
-	ctx.beginPath();
-	ctx.arc(position.x, position.y, radius, 0, Math.PI * 2);
-	ctx.fillStyle = color;
-	ctx.fill();
-}
+const CELL = 48;
+const SPRITE = { tank: 0, bullet: 1, homingMissile: 2, heal: 3, homingAmmo: 4 };
 
-function drawTank(ctx, tank, alpha) {
-	const { x, y } = renderPosition(tank, alpha);
-	const angle = lerp(tank.previousAngle, tank.angle, alpha);
-
+function drawSprite(ctx, sheet, name, position, size, angle = 0) {
 	ctx.save();
-	ctx.translate(x, y);
+	ctx.translate(position.x, position.y);
 	ctx.rotate(angle);
-
-	ctx.lineWidth = 2;
-	ctx.strokeStyle = "black";
-	ctx.strokeRect(-16, -23, 32, 46);
-
-	ctx.fillStyle = "#0F2070";
-	ctx.fillRect(-15, -22, 30, 44);
-
-	ctx.strokeRect(-8, -12, 16, 23);
-
-	ctx.fillStyle = "black";
-	ctx.fillRect(-20, -19, 5, 40);
-	ctx.fillRect(15, -19, 5, 40);
-	ctx.fillRect(-2, -38, 5, 40);
-
+	ctx.drawImage(sheet, SPRITE[name] * CELL, 0, CELL, CELL, -size / 2, -size / 2, size, size);
 	ctx.restore();
 }
 
-const drawers = {
-	tank: drawTank,
-	bullet: (ctx, e, alpha) =>
-		circle(
-			ctx,
-			renderPosition(e, alpha),
-			e.radius,
-			e.has("homing") ? "dodgerblue" : "orange",
-		),
-	homingMissile: (ctx, e, alpha) =>
-		circle(ctx, renderPosition(e, alpha), e.radius, "red"),
-	pickup: (ctx, e, alpha) =>
-		circle(ctx, renderPosition(e, alpha), e.radius, e.get("pickup").color),
-	explosion: (ctx, e) => {
-		for (const p of e.particles) {
-			circle(ctx, p.position, 2 + p.life * 3, "orange");
-		}
-	},
-};
+function drawExplosion(ctx, explosion) {
+	for (const p of explosion.particles) {
+		ctx.beginPath();
+		ctx.arc(p.position.x, p.position.y, 2 + p.life * 3, 0, Math.PI * 2);
+		ctx.fillStyle = "orange";
+		ctx.fill();
+	}
+}
 
-export function render(ctx, world, alpha, width, height) {
+export function render(ctx, world, alpha, width, height, sheet) {
 	ctx.clearRect(0, 0, width, height);
 
-	for (const entity of world) {
-		drawers[entity.kind](ctx, entity, alpha);
+	for (const e of world) {
+		if (e.kind === "explosion") {
+			drawExplosion(ctx, e);
+			continue;
+		}
+
+		const position = renderPosition(e, alpha);
+		if (e.kind === "tank") {
+			const angle = lerp(e.previousAngle, e.angle, alpha);
+			drawSprite(ctx, sheet, "tank", position, 48, angle);
+		} else if (e.kind === "pickup") {
+			drawSprite(ctx, sheet, e.get("pickup").sprite, position, e.radius * 3);
+		} else {
+			drawSprite(ctx, sheet, e.kind, position, e.radius * 3);
+		}
 	}
 }

@@ -1,5 +1,5 @@
+import { Vector2 } from "../utils/vector2";
 import { Entity } from "./entity";
-import { Vector2 } from "./vector2";
 
 export class Explosion extends Entity {
 	constructor(position) {

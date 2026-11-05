@@ -1,4 +1,4 @@
-import { Vector2 } from "./vector2";
+import { Vector2 } from "./utils/vector2";
 
 const wrap = (value, max) => ((value % max) + max) % max;
 
