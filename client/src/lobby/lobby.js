@@ -28,8 +28,19 @@ export class Lobby extends EventTarget {
 		}
 	}
 
-	join(name, room) {
+		async join(name, room) {
 		this.stop();
+		try {
+			const res = await fetch("/api/rooms", {
+				method: "POST",
+				body: JSON.stringify({ id: room.id }),
+			});
+			if (!res.ok) throw new Error(res.status);
+		} catch (err) {
+			this.start();
+			this.dispatchEvent(new CustomEvent("failed", { detail: err }));
+			return;
+		}
 		this.dispatchEvent(new CustomEvent("join", { detail: { name, room } }));
 	}
 }

@@ -10,6 +10,7 @@ import { createInput } from "./input";
 import { Lobby } from "./lobby/lobby";
 import { createLobbyView } from "./lobby/lobbyView";
 import { createLoop } from "./loop";
+import { startChat } from "./net/chat";
 import { render } from "./render";
 import { Vector2 } from "./utils/vector2";
 
@@ -29,7 +30,6 @@ canvas.style.height = `${height}px`;
 
 const ctx = canvas.getContext("2d");
 ctx.scale(dpr, dpr);
-
 
 function drawLoading(text, progress) {
 	const barWidth = 300;
@@ -80,7 +80,7 @@ async function load() {
 		$("#lobby").hidden = false;
 		lobby.start();
 	} catch (err) {
-		controller.abort(); 
+		controller.abort();
 		drawLoading(errorText(err), 0);
 		$("#retry").hidden = false;
 	} finally {
@@ -89,7 +89,6 @@ async function load() {
 }
 
 $("#retry").addEventListener("click", load);
-
 
 let world;
 let tank;
@@ -137,12 +136,14 @@ function update(dt) {
 }
 
 function startGame({ name, room }) {
-	unlockAudio(); 
+	unlockAudio();
 	arena = room.arena;
 
 	$("#lobby").hidden = true;
 	$(".hud").hidden = false;
 	$("#player").textContent = `${name} @ ${room.name}`;
+
+	startChat(name, room.id);
 
 	world = new World();
 	input = createInput((action) => {

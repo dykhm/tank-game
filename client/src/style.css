@@ -69,3 +69,24 @@ select {
   left: 50%;
   transform: translateX(-50%);
 }
+
+#chat {
+  position: absolute;
+  left: 15px;
+  bottom: 15px;
+  width: 260px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+#chat[hidden] {
+  display: none;
+}
+
+#chat-log {
+  height: 120px;
+  overflow-y: auto;
+  padding: 5px;
+  background: rgba(255, 255, 255, 0.85);
+}
