@@ -1,6 +1,4 @@
-export function createLoop(update, render) {
-	const FIXED_DT = 1 / 60;
-
+export function createLoop(update, render, FIXED_DT = 1 / 60) {
 	let previousTime = performance.now();
 	let accumulator = 0;
 
@@ -12,7 +10,7 @@ export function createLoop(update, render) {
 		const frameTime = currentTime - previousTime;
 		previousTime = currentTime;
 
-		accumulator += frameTime / 1000;
+		accumulator += Math.min(frameTime, 250) / 1000; 
 		while (accumulator >= FIXED_DT) {
 			update(FIXED_DT);
 
@@ -22,7 +20,7 @@ export function createLoop(update, render) {
 
 		const alpha = accumulator / FIXED_DT;
 
-		render(alpha);
+		render(alpha, frameTime / 1000); 
 
 		frames++;
 

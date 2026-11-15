@@ -3,14 +3,36 @@ import { createServer } from "node:http";
 import { extname, join } from "node:path";
 import { pipeline } from "node:stream";
 import { WebSocketServer } from "ws";
+import {
+	decodeInputs,
+	decodePing,
+	encodePing,
+	MSG,
+	messageType,
+} from "../shared/index.js";
 import { config } from "./config.js";
 import { createMatchLog } from "./matchLog.js";
 import { Room } from "./room.js";
 
 const PRESETS = [
-	{ id: "easy", name: "Easy", max: 4, arena: { missileInterval: 4, maxMissiles: 3 } },
-	{ id: "normal", name: "Normal", max: 4, arena: { missileInterval: 2.5, maxMissiles: 5 } },
-	{ id: "hard", name: "Hard", max: 8, arena: { missileInterval: 1.2, maxMissiles: 10 } },
+	{
+		id: "easy",
+		name: "Easy",
+		max: 4,
+		arena: { missileInterval: 4, maxMissiles: 3 },
+	},
+	{
+		id: "normal",
+		name: "Normal",
+		max: 4,
+		arena: { missileInterval: 2.5, maxMissiles: 5 },
+	},
+	{
+		id: "hard",
+		name: "Hard",
+		max: 8,
+		arena: { missileInterval: 1.2, maxMissiles: 10 },
+	},
 ];
 
 const MIME = {
@@ -23,14 +45,14 @@ const MIME = {
 	".ndjson": "application/x-ndjson",
 };
 
-const MAX_MESSAGE = 1024; 
-const MAX_PER_SECOND = 20; 
+const MAX_MESSAGE = 1024;
+const MAX_PER_SECOND = 20;
+const MAX_BINARY_PER_SECOND = 120;
 const JOIN_TIMEOUT = 5000;
 const PING_INTERVAL = 15000;
 
 mkdirSync(config.logDir, { recursive: true });
 const rooms = new Map();
-
 
 function createRoom(preset) {
 	const room = new Room(preset);
@@ -48,7 +70,6 @@ function createRoom(preset) {
 	return room;
 }
 
-
 function sendJson(res, status, data) {
 	res.writeHead(status, { "Content-Type": "application/json" });
 	res.end(JSON.stringify(data));
@@ -57,8 +78,10 @@ function sendJson(res, status, data) {
 function sendFile(res, file) {
 	const stream = createReadStream(file);
 	stream.once("open", () => {
-		res.writeHead(200, { "Content-Type": MIME[extname(file)] ?? "application/octet-stream" });
-		pipeline(stream, res, () => {}); 
+		res.writeHead(200, {
+			"Content-Type": MIME[extname(file)] ?? "application/octet-stream",
+		});
+		pipeline(stream, res, () => {});
 	});
 	stream.once("error", () => {
 		if (!res.headersSent) sendJson(res, 404, { error: "not found" });
@@ -96,7 +119,10 @@ async function handle(req, res) {
 			return sendJson(
 				res,
 				200,
-				PRESETS.map((p) => ({ ...p, players: rooms.get(p.id)?.members.size ?? 0 })),
+				PRESETS.map((p) => ({
+					...p,
+					players: rooms.get(p.id)?.members.size ?? 0,
+				})),
 			);
 		}
 		if (req.method === "POST") {
@@ -114,7 +140,10 @@ async function handle(req, res) {
 	}
 
 	if (req.method === "GET") {
-		return sendFile(res, join(config.clientDir, pathname === "/" ? "index.html" : pathname));
+		return sendFile(
+			res,
+			join(config.clientDir, pathname === "/" ? "index.html" : pathname),
+		);
 	}
 	sendJson(res, 404, { error: "not found" });
 }
@@ -125,12 +154,21 @@ const server = createServer((req, res) => {
 	});
 });
 
-
-const isStr = (v, max) => typeof v === "string" && v.length > 0 && v.length <= max;
+const isStr = (v, max) =>
+	typeof v === "string" && v.length > 0 && v.length <= max;
 const SCHEMAS = {
-	join: (m) => isStr(m.room, 32) && isStr(m.name, 20),
+	join: (m) =>
+		isStr(m.room, 32) &&
+		isStr(m.name, 20) &&
+		(m.format === undefined || m.format === "bin" || m.format === "json"),
 	chat: (m) => isStr(m.text, 200),
 	leave: () => true,
+	input: (m) =>
+		Array.isArray(m.inputs) &&
+		m.inputs.length <= 8 &&
+		m.inputs.every(
+			(i) => Number.isInteger(i.seq) && i.seq >= 0 && i.seq <= 0xffff && Number.isInteger(i.bits) && i.bits >= 0 && i.bits <= 31,
+		),
 };
 
 function parse(text) {
@@ -149,15 +187,35 @@ function parse(text) {
 	return { msg };
 }
 
-const wss = new WebSocketServer({ server, path: "/ws", maxPayload: MAX_MESSAGE });
+function limiter(max) {
+	let start = Date.now();
+	let count = 0;
+	return () => {
+		const now = Date.now();
+		if (now - start >= 1000) {
+			start = now;
+			count = 0;
+		}
+		return ++count <= max;
+	};
+}
+
+const wss = new WebSocketServer({
+	server,
+	path: "/ws",
+	maxPayload: MAX_MESSAGE,
+});
 
 wss.on("connection", (ws) => {
 	let room = null;
-	let windowStart = Date.now();
-	let count = 0;
+	const allowText = limiter(MAX_PER_SECOND);
+	const allowBinary = limiter(MAX_BINARY_PER_SECOND);
 	ws.missedPongs = 0;
 
-	const joinTimer = setTimeout(() => ws.close(4008, "join timeout"), JOIN_TIMEOUT);
+	const joinTimer = setTimeout(
+		() => ws.close(4008, "join timeout"),
+		JOIN_TIMEOUT,
+	);
 
 	ws.on("error", (err) => console.error("ws error:", err.message));
 	ws.on("pong", () => {
@@ -165,17 +223,24 @@ wss.on("connection", (ws) => {
 	});
 
 	ws.on("message", (data, isBinary) => {
-		const now = Date.now();
-		if (now - windowStart >= 1000) {
-			windowStart = now;
-			count = 0;
+		if (isBinary) {
+			if (!allowBinary()) return ws.close(4029, "rate limit");
+			if (!room) return ws.close(4003, "join first");
+			try {
+				const type = messageType(data);
+				if (type === MSG.INPUT) room.input(ws, decodeInputs(data));
+				else if (type === MSG.PING) ws.send(encodePing(MSG.PONG, decodePing(data).t));
+				else return ws.close(4001, "unknown type");
+			} catch {
+				return ws.close(4002, "bad binary");
+			}
+			return;
 		}
-		if (++count > MAX_PER_SECOND) return ws.close(4029, "rate limit");
 
-		const { msg, code, reason } = isBinary
-			? { code: 4002, reason: "binary not allowed" }
-			: parse(data.toString());
+		const { msg, code, reason } = parse(data.toString());
 		if (!msg) return ws.close(code, reason);
+		const allow = msg.type === "input" ? allowBinary : allowText;
+		if (!allow()) return ws.close(4029, "rate limit");
 
 		if (msg.type === "join") {
 			if (room) return ws.close(4002, "already joined");
@@ -187,8 +252,8 @@ wss.on("connection", (ws) => {
 			room.join(ws, msg.name);
 			return;
 		}
-		if (!room) return ws.close(4003, "join first");
-		if (msg.type === "chat") room.chat(ws, msg.text);
+		if (msg.type === "input") room.input(ws, msg.inputs);
+		else if (msg.type === "chat") room.chat(ws, msg.text);
 		else if (msg.type === "leave") ws.close(1000, "bye");
 	});
 
@@ -209,7 +274,6 @@ const heartbeat = setInterval(() => {
 	}
 }, PING_INTERVAL);
 
-
 let shuttingDown = false;
 async function shutdown() {
 	if (shuttingDown) return;
@@ -228,7 +292,7 @@ async function shutdown() {
 		),
 	);
 	for (const log of logs) log.end();
-	await Promise.allSettled(logs.map((l) => l.done)); 
+	await Promise.allSettled(logs.map((l) => l.done));
 
 	server.close();
 	process.exit(0);
@@ -236,4 +300,6 @@ async function shutdown() {
 process.on("SIGINT", shutdown);
 process.on("SIGTERM", shutdown);
 
-server.listen(config.port, () => console.log(`Server on http://localhost:${config.port}`));
+server.listen(config.port, () =>
+	console.log(`Server on http://localhost:${config.port}`),
+);

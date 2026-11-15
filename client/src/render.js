@@ -1,53 +1,39 @@
-const lerp = (a, b, t) => a + (b - a) * t;
-
-const TELEPORT_DISTANCE = 50;
-
-function renderPosition(entity, alpha) {
-	const { previousPosition: from, position: to } = entity;
-
-	if (from.distanceTo(to) > TELEPORT_DISTANCE) {
-		return { x: to.x, y: to.y };
-	}
-	return { x: lerp(from.x, to.x, alpha), y: lerp(from.y, to.y, alpha) };
-}
+import { HEIGHT, PICKUP_TYPES, WIDTH } from "../../shared/index.js";
 
 const CELL = 48;
-const SPRITE = { tank: 0, bullet: 1, homingMissile: 2, heal: 3, homingAmmo: 4 };
+const SPRITE = { tank: 0, bullet: 1, missile: 2, heal: 3, homingAmmo: 4 };
 
-function drawSprite(ctx, sheet, name, position, size, angle = 0) {
+function drawSprite(ctx, sheet, name, x, y, size, angle = 0) {
 	ctx.save();
-	ctx.translate(position.x, position.y);
+	ctx.translate(x, y);
 	ctx.rotate(angle);
 	ctx.drawImage(sheet, SPRITE[name] * CELL, 0, CELL, CELL, -size / 2, -size / 2, size, size);
 	ctx.restore();
 }
 
-function drawExplosion(ctx, explosion) {
-	for (const p of explosion.particles) {
-		ctx.beginPath();
-		ctx.arc(p.position.x, p.position.y, 2 + p.life * 3, 0, Math.PI * 2);
-		ctx.fillStyle = "orange";
-		ctx.fill();
-	}
-}
-
-export function render(ctx, world, alpha, width, height, sheet) {
+export function render(ctx, view, sheet, names, width, height) {
 	ctx.clearRect(0, 0, width, height);
 
-	for (const e of world) {
-		if (e.kind === "explosion") {
-			drawExplosion(ctx, e);
-			continue;
-		}
+	const scale = Math.min(width / WIDTH, height / HEIGHT);
+	ctx.save();
+	ctx.translate((width - WIDTH * scale) / 2, (height - HEIGHT * scale) / 2);
+	ctx.scale(scale, scale);
+	ctx.strokeStyle = "rgb(40, 12, 163)";
+	ctx.strokeRect(0, 0, WIDTH, HEIGHT);
 
-		const position = renderPosition(e, alpha);
-		if (e.kind === "tank") {
-			const angle = lerp(e.previousAngle, e.angle, alpha);
-			drawSprite(ctx, sheet, "tank", position, 48, angle);
-		} else if (e.kind === "pickup") {
-			drawSprite(ctx, sheet, e.get("pickup").sprite, position, e.radius * 3);
-		} else {
-			drawSprite(ctx, sheet, e.kind, position, e.radius * 3);
+	if (view) {
+		for (const p of view.pickups) drawSprite(ctx, sheet, PICKUP_TYPES[p.type], p.x, p.y, 30);
+		for (const m of view.missiles) drawSprite(ctx, sheet, "missile", m.x, m.y, 30);
+		for (const b of view.bullets) drawSprite(ctx, sheet, "bullet", b.x, b.y, 9);
+
+		ctx.font = "12px 'Zen Dots'";
+		ctx.textAlign = "center";
+		for (const t of view.tanks) {
+			if (t.dead) continue;
+			drawSprite(ctx, sheet, "tank", t.x, t.y, 48, t.angle);
+			ctx.fillStyle = t.own ? "rgb(40, 12, 163)" : "rgb(116, 24, 24)";
+			ctx.fillText(names.get(t.id) ?? `#${t.id}`, t.x, t.y - 34);
 		}
 	}
+	ctx.restore();
 }

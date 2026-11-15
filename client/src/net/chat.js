@@ -1,8 +1,6 @@
-import { GameSocket } from "./socket";
-
 const $ = (selector) => document.querySelector(selector);
 
-export function startChat(name, roomId) {
+export function startChat(socket) {
 	const log = $("#chat-log");
 	const input = $("#chat-input");
 	$("#chat").hidden = false;
@@ -14,10 +12,6 @@ export function startChat(name, roomId) {
 		log.scrollTop = log.scrollHeight;
 	};
 
-	const protocol = location.protocol === "https:" ? "wss" : "ws";
-	const socket = new GameSocket(`${protocol}://${location.host}/ws`);
-
-	socket.addEventListener("open", () => socket.send({ type: "join", room: roomId, name }));
 	socket.addEventListener("message", (e) => {
 		const m = e.detail;
 		if (m.type === "joined") add(`${m.name} joined (${m.players.length} in room)`);

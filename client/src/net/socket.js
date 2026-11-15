@@ -4,15 +4,29 @@ export class GameSocket extends EventTarget {
 	#queue = [];
 	#attempt = 0;
 	#closed = false;
+	#sim;
 
-	constructor(url) {
+	bytesIn = 0;
+	bytesOut = 0;
+
+	constructor(url, sim = {}) {
 		super();
 		this.#url = url;
+		this.#sim = { lag: 0, jitter: 0, loss: 0, ...sim };
 		this.#connect();
+	}
+
+	#simulate(fn) {
+		const { lag, jitter, loss } = this.#sim;
+		if (loss > 0 && Math.random() < loss) return;
+		const delay = lag / 2 + Math.random() * jitter;
+		if (delay <= 0) fn();
+		else setTimeout(fn, delay);
 	}
 
 	#connect() {
 		const ws = new WebSocket(this.#url);
+		ws.binaryType = "arraybuffer";
 		this.#ws = ws;
 
 		ws.addEventListener("open", () => {
@@ -22,7 +36,16 @@ export class GameSocket extends EventTarget {
 		});
 
 		ws.addEventListener("message", (e) => {
-			this.dispatchEvent(new CustomEvent("message", { detail: JSON.parse(e.data) }));
+			if (typeof e.data === "string") {
+				this.bytesIn += e.data.length;
+				const message = JSON.parse(e.data);
+				const emit = () => this.dispatchEvent(new CustomEvent("message", { detail: message }));
+				if (message.type === "snap") this.#simulate(emit);
+				else emit();
+			} else {
+				this.bytesIn += e.data.byteLength;
+				this.#simulate(() => this.dispatchEvent(new CustomEvent("binary", { detail: e.data })));
+			}
 		});
 
 		ws.addEventListener("close", (e) => {
@@ -30,15 +53,23 @@ export class GameSocket extends EventTarget {
 				this.dispatchEvent(new CustomEvent("close", { detail: e.code }));
 				return;
 			}
-			const delay = Math.min(30000, 500 * 2 ** this.#attempt++); 
+			const delay = Math.min(30000, 500 * 2 ** this.#attempt++);
 			setTimeout(() => this.#connect(), delay);
 		});
 	}
 
-	send(obj) {
-		const data = JSON.stringify(obj);
+	#transmit(data) {
+		this.bytesOut += typeof data === "string" ? data.length : data.byteLength;
 		if (this.#ws.readyState === WebSocket.OPEN) this.#ws.send(data);
-		else this.#queue.push(data);
+		else if (typeof data === "string") this.#queue.push(data);
+	}
+
+	send(obj) {
+		this.#transmit(JSON.stringify(obj));
+	}
+
+	sendGame(data) {
+		this.#simulate(() => this.#transmit(data));
 	}
 
 	close() {
